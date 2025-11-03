@@ -1,0 +1,438 @@
+﻿@page "/gameoflife"
+@inject IJSRuntime JS
+
+<div class="game-container">
+    <h1>Conway's Game of Life - WebGL Compute Shader</h1>
+    
+    <div class="controls-panel">
+        <div class="controls-section">
+            <h3>Simulation Controls</h3>
+            <div class="controls">
+                <button @onclick="StartGame" disabled="@isRunning">Start</button>
+                <button @onclick="StopGame" disabled="@(!isRunning)">Stop</button>
+                <button @onclick="StepGame" disabled="@isRunning">Step</button>
+                <button @onclick="ResetGame">Reset (Random)</button>
+                <button @onclick="ClearGame">Clear</button>
+                <span class="generation">Generation: @generation</span>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <h3>Grid Settings</h3>
+            <div class="parameter-grid">
+                <div class="parameter">
+                    <label for="gridSize">Grid Size: @gridSize x @gridSize</label>
+                    <input type="range" id="gridSize" min="64" max="512" step="64" 
+                           @bind="gridSize" @bind:event="oninput" @onchange="OnGridSizeChanged" />
+                </div>
+
+                <div class="parameter">
+                    <label for="spawnDensity">Initial Spawn Density: @((spawnDensity * 100).ToString("F0"))%</label>
+                    <input type="range" id="spawnDensity" min="0.1" max="0.9" step="0.05" 
+                           @bind="spawnDensity" @bind:event="oninput" />
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <h3>Game Rules</h3>
+            <div class="parameter-grid">
+                <div class="parameter">
+                    <label for="birthMin">Birth Min Neighbors: @birthMin</label>
+                    <input type="range" id="birthMin" min="0" max="8" step="1" 
+                           @bind="birthMin" @bind:event="oninput" @onchange="OnRulesChanged" />
+                </div>
+
+                <div class="parameter">
+                    <label for="birthMax">Birth Max Neighbors: @birthMax</label>
+                    <input type="range" id="birthMax" min="0" max="8" step="1" 
+                           @bind="birthMax" @bind:event="oninput" @onchange="OnRulesChanged" />
+                </div>
+
+                <div class="parameter">
+                    <label for="surviveMin">Survive Min Neighbors: @surviveMin</label>
+                    <input type="range" id="surviveMin" min="0" max="8" step="1" 
+                           @bind="surviveMin" @bind:event="oninput" @onchange="OnRulesChanged" />
+                </div>
+
+                <div class="parameter">
+                    <label for="surviveMax">Survive Max Neighbors: @surviveMax</label>
+                    <input type="range" id="surviveMax" min="0" max="8" step="1" 
+                           @bind="surviveMax" @bind:event="oninput" @onchange="OnRulesChanged" />
+                </div>
+            </div>
+            <div class="rule-preset">
+                <label>Rule Presets:</label>
+                <select @onchange="OnPresetChanged">
+                    <option value="conway">Conway's Life (B3/S23)</option>
+                    <option value="highlife">HighLife (B36/S23)</option>
+                    <option value="daynight">Day & Night (B3678/S34678)</option>
+                    <option value="seeds">Seeds (B2/S)</option>
+                    <option value="replicator">Replicator (B1357/S1357)</option>
+                    <option value="mazectric">Mazectric (B3/S1234)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <h3>Visual Settings</h3>
+            <div class="parameter-grid">
+                <div class="parameter">
+                    <label for="colorScheme">Color Scheme:</label>
+                    <select id="colorScheme" @onchange="OnColorSchemeChanged">
+                        <option value="green">Classic Green</option>
+                        <option value="blue">Blue</option>
+                        <option value="red">Red</option>
+                        <option value="purple">Purple</option>
+                        <option value="rainbow">Rainbow</option>
+                        <option value="heat">Heat Map</option>
+                    </select>
+                </div>
+
+                <div class="parameter">
+                    <label for="cellBrightness">Cell Brightness: @((cellBrightness * 100).ToString("F0"))%</label>
+                    <input type="range" id="cellBrightness" min="0.3" max="2.0" step="0.1" 
+                           @bind="cellBrightness" @bind:event="oninput" @onchange="OnVisualChanged" />
+                </div>
+
+                <div class="parameter">
+                    <label for="gridOpacity">Grid Lines: @((gridOpacity * 100).ToString("F0"))%</label>
+                    <input type="range" id="gridOpacity" min="0.0" max="1.0" step="0.05" 
+                           @bind="gridOpacity" @bind:event="oninput" @onchange="OnVisualChanged" />
+                </div>
+
+                <div class="parameter">
+                    <label for="simulationSpeed">Speed: @simulationSpeed FPS</label>
+                    <input type="range" id="simulationSpeed" min="1" max="60" step="1" 
+                           @bind="simulationSpeed" @bind:event="oninput" @onchange="OnSpeedChanged" />
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
+</div>
+
+@code {
+    private bool isRunning = false;
+    private int generation = 0;
+    private IJSObjectReference? jsModule;
+
+    // Grid parameters
+    private int gridSize = 256;
+    private double spawnDensity = 0.3;
+
+    // Rule parameters
+    private int birthMin = 3;
+    private int birthMax = 3;
+    private int surviveMin = 2;
+    private int surviveMax = 3;
+
+    // Visual parameters
+    private string colorScheme = "green";
+    private double cellBrightness = 1.0;
+    private double gridOpacity = 0.0;
+    private int simulationSpeed = 30;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/gameoflife.js");
+            await jsModule.InvokeVoidAsync("initGameOfLife");
+            await UpdateAllParameters();
+        }
+    }
+
+    private async Task StartGame()
+    {
+        isRunning = true;
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("startGame");
+        }
+    }
+
+    private async Task StopGame()
+    {
+        isRunning = false;
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("stopGame");
+        }
+    }
+
+    private async Task StepGame()
+    {
+        if (jsModule != null)
+        {
+            generation = await jsModule.InvokeAsync<int>("stepGame");
+        }
+    }
+
+    private async Task ResetGame()
+    {
+        generation = 0;
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("resetGame", spawnDensity);
+        }
+    }
+
+    private async Task ClearGame()
+    {
+        generation = 0;
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("clearGame");
+        }
+    }
+
+    private async Task OnGridSizeChanged()
+    {
+        if (jsModule != null)
+        {
+            generation = 0;
+            await jsModule.InvokeVoidAsync("setGridSize", gridSize, spawnDensity);
+        }
+    }
+
+    private async Task OnRulesChanged()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("setRules", birthMin, birthMax, surviveMin, surviveMax);
+        }
+    }
+
+    private async Task OnPresetChanged(ChangeEventArgs e)
+    {
+        var preset = e.Value?.ToString() ?? "conway";
+        switch (preset)
+        {
+            case "conway":
+                birthMin = 3; birthMax = 3; surviveMin = 2; surviveMax = 3;
+                break;
+            case "highlife":
+                birthMin = 3; birthMax = 6; surviveMin = 2; surviveMax = 3;
+                break;
+            case "daynight":
+                birthMin = 3; birthMax = 8; surviveMin = 3; surviveMax = 8;
+                break;
+            case "seeds":
+                birthMin = 2; birthMax = 2; surviveMin = 9; surviveMax = 0;
+                break;
+            case "replicator":
+                birthMin = 1; birthMax = 7; surviveMin = 1; surviveMax = 7;
+                break;
+            case "mazectric":
+                birthMin = 3; birthMax = 3; surviveMin = 1; surviveMax = 4;
+                break;
+        }
+        await OnRulesChanged();
+    }
+
+    private async Task OnColorSchemeChanged(ChangeEventArgs e)
+    {
+        colorScheme = e.Value?.ToString() ?? "green";
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("setColorScheme", colorScheme);
+        }
+    }
+
+    private async Task OnVisualChanged()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("setVisualParams", cellBrightness, gridOpacity);
+        }
+    }
+
+    private async Task OnSpeedChanged()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("setSimulationSpeed", simulationSpeed);
+        }
+    }
+
+    private async Task UpdateAllParameters()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("setRules", birthMin, birthMax, surviveMin, surviveMax);
+            await jsModule.InvokeVoidAsync("setColorScheme", colorScheme);
+            await jsModule.InvokeVoidAsync("setVisualParams", cellBrightness, gridOpacity);
+            await jsModule.InvokeVoidAsync("setSimulationSpeed", simulationSpeed);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.InvokeVoidAsync("cleanup");
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+<style>
+    .game-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    h1 {
+        margin-bottom: 20px;
+        color: #333;
+    }
+
+    .controls-panel {
+        width: 100%;
+        margin-bottom: 20px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .controls-section {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .controls-section h3 {
+        margin: 0 0 15px 0;
+        color: #444;
+        font-size: 16px;
+        border-bottom: 2px solid #4CAF50;
+        padding-bottom: 5px;
+    }
+
+    .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+
+    button {
+        padding: 10px 20px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+        background-color: #4CAF50;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+    button:hover:not(:disabled) {
+        background-color: #45a049;
+    }
+
+    button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+    }
+
+    .generation {
+        font-weight: bold;
+        color: #666;
+        padding: 10px;
+        background: white;
+        border-radius: 4px;
+    }
+
+    .parameter-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .parameter {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .parameter label {
+        font-size: 13px;
+        color: #666;
+        font-weight: 500;
+    }
+
+    .parameter input[type="range"] {
+        width: 100%;
+        height: 6px;
+        background: #ddd;
+        border-radius: 3px;
+        outline: none;
+    }
+
+    .parameter input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #4CAF50;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .parameter input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: #4CAF50;
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+    }
+
+    .parameter select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    .rule-preset {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #ddd;
+    }
+
+    .rule-preset label {
+        font-size: 13px;
+        color: #666;
+        font-weight: 500;
+    }
+
+    .rule-preset select {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    #gameCanvas {
+        border: 2px solid #333;
+        background-color: #000;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+</style>

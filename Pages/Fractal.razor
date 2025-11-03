@@ -1,0 +1,490 @@
+﻿@page "/fractal"
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Fractal Explorer</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3 controls-panel">
+            <h4>Fractal Parameters</h4>
+            
+            <div class="form-group mb-3">
+                <label>Fractal Type</label>
+                <select class="form-control" @onchange="OnFractalTypeChanged">
+                    <option value="mandelbrot">Mandelbrot Set</option>
+                    <option value="julia">Julia Set</option>
+                    <option value="burningship">Burning Ship</option>
+                    <option value="tricorn">Tricorn (Mandelbar)</option>
+                    <option value="multibrot3">Multibrot (Power 3)</option>
+                    <option value="multibrot4">Multibrot (Power 4)</option>
+                </select>
+            </div>
+
+            <div class="form-group mb-3">
+                <label>Max Iterations: @maxIterations</label>
+                <input type="range" class="form-control-range" min="50" max="500" step="10" 
+                       value="@maxIterations" @oninput="@(e => { maxIterations = int.Parse(e.Value.ToString()); UpdateParameters(); })" />
+            </div>
+
+            <div class="form-group mb-3">
+                <label>Color Scheme</label>
+                <select class="form-control" @onchange="OnColorSchemeChanged">
+                    <option value="classic">Classic</option>
+                    <option value="fire">Fire</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="rainbow">Rainbow</option>
+                </select>
+            </div>
+
+            @if (fractalType == "julia")
+            {
+                <div class="alert alert-info small">
+                    <strong>Julia Set Presets:</strong>
+                    <div class="btn-group-vertical w-100 mt-2">
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(-0.7, 0.27015)">Dendrite</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(-0.4, 0.6)">Douady's Rabbit</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(0.285, 0.01)">Siegel Disk</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(-0.8, 0.156)">San Marco</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(-0.70176, -0.3842)">Spiral</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(0.285, 0.0)">Cauliflower</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(-0.835, -0.2321)">Lightning</button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SetJuliaPreset(-0.7269, 0.1889)">Archipelago</button>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Julia C Real: @juliaReal.ToString("F5")</label>
+                    <input type="range" class="form-control-range" min="-2" max="2" step="0.001" 
+                           value="@juliaReal" @oninput="@(e => { juliaReal = double.Parse(e.Value.ToString()); UpdateParameters(); })" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Julia C Imaginary: @juliaImag.ToString("F5")</label>
+                    <input type="range" class="form-control-range" min="-2" max="2" step="0.001" 
+                           value="@juliaImag" @oninput="@(e => { juliaImag = double.Parse(e.Value.ToString()); UpdateParameters(); })" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Fine Tune Real</label>
+                    <input type="range" class="form-control-range" min="-0.01" max="0.01" step="0.0001" 
+                           value="0" @oninput="@(e => { juliaReal += double.Parse(e.Value.ToString()); UpdateParameters(); })" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Fine Tune Imaginary</label>
+                    <input type="range" class="form-control-range" min="-0.01" max="0.01" step="0.0001" 
+                           value="0" @oninput="@(e => { juliaImag += double.Parse(e.Value.ToString()); UpdateParameters(); })" />
+                </div>
+
+                <div class="form-group mb-3">
+                    <label>Julia Power: @juliaPower</label>
+                    <input type="range" class="form-control-range" min="2" max="8" step="1" 
+                           value="@juliaPower" @oninput="@(e => { juliaPower = int.Parse(e.Value.ToString()); UpdateParameters(); })" />
+                </div>
+            }
+
+            <div class="form-group mb-3">
+                <label>Zoom Level: @(Math.Pow(2, zoomLevel).ToString("F2"))x</label>
+                <p class="small text-muted">Scale: @currentScale.ToString("E2")</p>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label>Auto-adjust Iterations</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" checked="@autoAdjustIterations" 
+                           @onchange="@(e => { autoAdjustIterations = (bool)e.Value; UpdateParameters(); })" />
+                    <label class="form-check-label">
+                        Enable (increases detail at deep zoom)
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn btn-primary w-100 mb-2" @onclick="ResetView">Reset View</button>
+            <button class="btn btn-secondary w-100 mb-2" @onclick="RandomizeJulia">Random Julia Set</button>
+            @if (fractalType == "julia")
+            {
+                <button class="btn btn-info w-100 mb-2" @onclick="CopyJuliaParams">Copy Julia Parameters</button>
+            }
+
+            <div class="mt-3">
+                <small class="text-muted">
+                    <strong>Controls:</strong><br/>
+                    • Mouse wheel: Zoom<br/>
+                    • Click & drag: Pan<br/>
+                    • Double click: Center
+                </small>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <canvas id="fractalCanvas" width="1200" height="800" 
+                    style="border: 1px solid #ccc; cursor: move; width: 100%; max-width: 1200px;"></canvas>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string fractalType = "mandelbrot";
+    private int maxIterations = 150;
+    private string colorScheme = "classic";
+    private double juliaReal = -0.7;
+    private double juliaImag = 0.27015;
+    private int juliaPower = 2;
+    private double zoomLevel = 0;
+    private double currentScale = 2.5;
+    private bool autoAdjustIterations = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JSRuntime.InvokeVoidAsync("initFractalRenderer", DotNetObjectReference.Create(this));
+            await UpdateParameters();
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyScaleChanged(double newScale)
+    {
+        await OnScaleChanged(newScale);
+    }
+
+    private async Task OnFractalTypeChanged(ChangeEventArgs e)
+    {
+        fractalType = e.Value?.ToString() ?? "mandelbrot";
+        await UpdateParameters();
+    }
+
+    private async Task OnColorSchemeChanged(ChangeEventArgs e)
+    {
+        colorScheme = e.Value?.ToString() ?? "classic";
+        await UpdateParameters();
+    }
+
+    private async Task UpdateParameters()
+    {
+        // Calculate effective iterations based on zoom if auto-adjust is enabled
+        int effectiveIterations = maxIterations;
+        if (autoAdjustIterations)
+        {
+            // Increase iterations as we zoom in to maintain detail
+            double zoomFactor = Math.Log10(2.5 / currentScale);
+            effectiveIterations = Math.Min(1000, (int)(maxIterations * (1 + zoomFactor * 0.5)));
+        }
+
+        await JSRuntime.InvokeVoidAsync("updateFractalParameters", new
+        {
+            type = fractalType,
+            maxIterations = effectiveIterations,
+            colorScheme = colorScheme,
+            juliaReal = juliaReal,
+            juliaImag = juliaImag,
+            juliaPower = juliaPower
+        });
+    }
+
+    private async Task OnScaleChanged(double newScale)
+    {
+        currentScale = newScale;
+        await InvokeAsync(StateHasChanged);
+        await UpdateParameters();
+    }
+
+    private async Task SetJuliaPreset(double real, double imag)
+    {
+        juliaReal = real;
+        juliaImag = imag;
+        await UpdateParameters();
+    }
+
+    private async Task CopyJuliaParams()
+    {
+        var text = $"Real: {juliaReal:F5}, Imaginary: {juliaImag:F5}";
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+    }
+
+    private async Task ResetView()
+    {
+        zoomLevel = 0;
+        await JSRuntime.InvokeVoidAsync("resetFractalView");
+        await UpdateParameters();
+    }
+
+    private async Task RandomizeJulia()
+    {
+        var random = new Random();
+        juliaReal = random.NextDouble() * 2 - 1;
+        juliaImag = random.NextDouble() * 2 - 1;
+        await UpdateParameters();
+    }
+}
+
+<style>
+    .controls-panel {
+        padding: 20px;
+        background-color: #f8f9fa;
+        overflow-y: auto;
+    }
+
+    .form-group label {
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+</style>
+
+<script>
+    let gl, program, canvas;
+    let centerX = 0, centerY = 0, scale = 2.5;
+    let isDragging = false, lastX, lastY;
+    let dotNetHelper;
+    let lastZoomThreshold = 0;
+    const ZOOM_THRESHOLD_INTERVAL = 0.5; // Reprocess every time scale changes by this factor
+    
+    let params = {
+        type: 'mandelbrot',
+        maxIterations: 150,
+        colorScheme: 'classic',
+        juliaReal: -0.7,
+        juliaImag: 0.27015,
+        juliaPower: 2
+    };
+
+    window.initFractalRenderer = function(helper) {
+        dotNetHelper = helper;
+        canvas = document.getElementById('fractalCanvas');
+        gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            alert('WebGL not supported');
+            return;
+        }
+
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, `
+            attribute vec2 position;
+            void main() {
+                gl_Position = vec4(position, 0.0, 1.0);
+            }
+        `);
+        gl.compileShader(vertexShader);
+
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, `
+            precision highp float;
+            uniform vec2 resolution;
+            uniform vec2 center;
+            uniform float scale;
+            uniform int maxIterations;
+            uniform int fractalType;
+            uniform int colorScheme;
+            uniform vec2 juliaC;
+            uniform int juliaPower;
+
+            vec3 getColor(int iterations) {
+                if (iterations == maxIterations) return vec3(0.0);
+                
+                float t = float(iterations) / float(maxIterations);
+                
+                if (colorScheme == 0) { // classic
+                    return vec3(t, t * t, sqrt(t));
+                } else if (colorScheme == 1) { // fire
+                    return vec3(t, t * 0.5, t * 0.1);
+                } else if (colorScheme == 2) { // ocean
+                    return vec3(t * 0.2, t * 0.6, t);
+                } else { // rainbow
+                    return vec3(
+                        0.5 + 0.5 * cos(6.28 * t),
+                        0.5 + 0.5 * cos(6.28 * (t + 0.33)),
+                        0.5 + 0.5 * cos(6.28 * (t + 0.67))
+                    );
+                }
+            }
+
+            vec2 complexPower(vec2 z, int n) {
+                if (n == 2) {
+                    return vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y);
+                }
+                
+                float r = length(z);
+                float theta = atan(z.y, z.x);
+                float rn = pow(r, float(n));
+                float ntheta = float(n) * theta;
+                return vec2(rn * cos(ntheta), rn * sin(ntheta));
+            }
+
+            void main() {
+                vec2 uv = (gl_FragCoord.xy / resolution - 0.5) * 2.0;
+                uv.x *= resolution.x / resolution.y;
+                vec2 c = center + uv * scale;
+                
+                vec2 z;
+                int power = 2;
+                
+                if (fractalType == 0) { // mandelbrot
+                    z = vec2(0.0);
+                } else if (fractalType == 1) { // julia
+                    z = c;
+                    c = juliaC;
+                    power = juliaPower;
+                } else if (fractalType == 2) { // burning ship
+                    z = vec2(0.0);
+                } else if (fractalType == 3) { // tricorn
+                    z = vec2(0.0);
+                } else if (fractalType == 4) { // multibrot power 3
+                    z = vec2(0.0);
+                    power = 3;
+                } else if (fractalType == 5) { // multibrot power 4
+                    z = vec2(0.0);
+                    power = 4;
+                }
+                
+                int iterations = 0;
+                for (int i = 0; i < 1000; i++) {
+                    if (i >= maxIterations) break;
+                    
+                    if (fractalType == 2) { // burning ship
+                        z = vec2(abs(z.x), abs(z.y));
+                        z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
+                    } else if (fractalType == 3) { // tricorn (conjugate)
+                        z = vec2(z.x * z.x - z.y * z.y, -2.0 * z.x * z.y) + c;
+                    } else {
+                        z = complexPower(z, power) + c;
+                    }
+                    
+                    if (length(z) > 4.0) break;
+                    iterations++;
+                }
+                
+                gl_FragColor = vec4(getColor(iterations), 1.0);
+            }
+        `);
+        gl.compileShader(fragmentShader);
+
+        program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        gl.useProgram(program);
+
+        const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        const position = gl.getAttribLocation(program, 'position');
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+        setupEventListeners();
+        render();
+    };
+
+    function checkZoomThreshold() {
+        const currentThreshold = Math.floor(Math.log(2.5 / scale) / Math.log(1 + ZOOM_THRESHOLD_INTERVAL));
+        if (currentThreshold !== lastZoomThreshold) {
+            lastZoomThreshold = currentThreshold;
+            if (dotNetHelper) {
+                dotNetHelper.invokeMethodAsync('NotifyScaleChanged', scale);
+            }
+        }
+    }
+
+    function setupEventListeners() {
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width * 2 - 1;
+            const y = -((e.clientY - rect.top) / rect.height * 2 - 1);
+            
+            const worldX = centerX + x * scale * (canvas.width / canvas.height);
+            const worldY = centerY + y * scale;
+            
+            const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+            scale *= zoomFactor;
+            
+            centerX = worldX - x * scale * (canvas.width / canvas.height);
+            centerY = worldY - y * scale;
+            
+            checkZoomThreshold();
+            render();
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                const dx = (e.clientX - lastX) / rect.width * 2 * scale * (canvas.width / canvas.height);
+                const dy = -(e.clientY - lastY) / rect.height * 2 * scale;
+                
+                centerX -= dx;
+                centerY -= dy;
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+                render();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => { isDragging = false; });
+        canvas.addEventListener('mouseleave', () => { isDragging = false; });
+
+        canvas.addEventListener('dblclick', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width * 2 - 1;
+            const y = -((e.clientY - rect.top) / rect.height * 2 - 1);
+            
+            centerX += x * scale * (canvas.width / canvas.height);
+            centerY += y * scale;
+            render();
+        });
+    }
+
+    window.updateFractalParameters = function(p) {
+        params = p;
+        render();
+    };
+
+    window.resetFractalView = function() {
+        centerX = 0;
+        centerY = 0;
+        scale = 2.5;
+        render();
+    };
+
+    function render() {
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        
+        const resolutionLoc = gl.getUniformLocation(program, 'resolution');
+        gl.uniform2f(resolutionLoc, canvas.width, canvas.height);
+        
+        const centerLoc = gl.getUniformLocation(program, 'center');
+        gl.uniform2f(centerLoc, centerX, centerY);
+        
+        const scaleLoc = gl.getUniformLocation(program, 'scale');
+        gl.uniform1f(scaleLoc, scale);
+        
+        const maxIterLoc = gl.getUniformLocation(program, 'maxIterations');
+        gl.uniform1i(maxIterLoc, params.maxIterations);
+        
+        const fractalTypeLoc = gl.getUniformLocation(program, 'fractalType');
+        const typeMap = { mandelbrot: 0, julia: 1, burningship: 2, tricorn: 3, multibrot3: 4, multibrot4: 5 };
+        gl.uniform1i(fractalTypeLoc, typeMap[params.type] || 0);
+        
+        const colorSchemeLoc = gl.getUniformLocation(program, 'colorScheme');
+        const colorMap = { classic: 0, fire: 1, ocean: 2, rainbow: 3 };
+        gl.uniform1i(colorSchemeLoc, colorMap[params.colorScheme] || 0);
+        
+        const juliaCLoc = gl.getUniformLocation(program, 'juliaC');
+        gl.uniform2f(juliaCLoc, params.juliaReal, params.juliaImag);
+        
+        const juliaPowerLoc = gl.getUniformLocation(program, 'juliaPower');
+        gl.uniform1i(juliaPowerLoc, params.juliaPower);
+        
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+</script>
