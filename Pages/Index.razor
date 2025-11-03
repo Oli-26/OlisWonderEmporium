@@ -1,5 +1,22 @@
 ﻿@page "/"
-
+@inject NavigationManager Navigation
 <PageTitle>Index</PageTitle>
+<div class="button-container">
+    <button @onclick="NavigateToFractal">Go to Fractal Page</button>
+    <button @onclick="NavigateToGameOfLife">Go to Game of Life Page</button>
+</div>
 
-<h1>Clean Blazor</h1>
+
+<h1></h1>
+
+@code {
+    private void NavigateToFractal()
+    {
+        Navigation.NavigateTo("/fractal");
+    }
+
+    private void NavigateToGameOfLife()
+    {
+        Navigation.NavigateTo("/gameoflife");
+    }
+}
