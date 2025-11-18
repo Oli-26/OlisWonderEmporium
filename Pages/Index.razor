@@ -4,6 +4,9 @@
 <div class="button-container">
     <button @onclick="NavigateToFractal">Go to Fractal Page</button>
     <button @onclick="NavigateToGameOfLife">Go to Game of Life Page</button>
+    <button @onclick="NavigateToComplexGameOfLife">Go to Complex Game of Life Page</button>
+    <button @onclick="NavigateToPlanetViewer">Go to Planet View</button>
+    <button @onclick="NavigateToPlane">Go to Plane</button>
 </div>
 
 
@@ -18,5 +21,19 @@
     private void NavigateToGameOfLife()
     {
         Navigation.NavigateTo("/gameoflife");
+    }
+    private void NavigateToComplexGameOfLife()
+    {
+        Navigation.NavigateTo("/complexgameoflife");
+    }
+
+    private void NavigateToPlanetViewer()
+    {
+        Navigation.NavigateTo("/planet-viewer");
+    }
+
+    private void NavigateToPlane()
+    {
+        Navigation.NavigateTo("/plane");
     }
 }

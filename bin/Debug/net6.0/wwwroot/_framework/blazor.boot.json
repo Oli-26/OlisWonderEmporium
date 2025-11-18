@@ -1,7 +1,7 @@
 {
   "entryAssembly": "OlisWonderEmporium",
   "resources": {
-    "hash": "sha256-quT+/r28ZqadH2J1pI1/xSMa3FPXxnrSv/EkJ5NZGfE=",
+    "hash": "sha256-N/+pA+kor+joAWrusfbOxcRs5aCNpmPZyjfrGcv9j+g=",
     "runtime": {
       "dotnet.js": "sha256-pu7MO47B6So4jcW6iY2UI11lBZYz2EQnJKiYNsOpNJg=",
       "dotnet.timezones.blat": "sha256-vrFYQt55a4tGoDGoyRfjjGa1nSecx646RK78iTzPWCM=",
@@ -201,10 +201,10 @@
       "mscorlib.dll": "sha256-FHccFgM8rcGOQ8oacA4eEgiiOynHayVKyd2ICq3Bo4w=",
       "netstandard.dll": "sha256-D91viTBgwuzeuIOx1KgBYnoY0hl2IpcBu/zr22Fu0BU=",
       "System.Private.CoreLib.dll": "sha256-5FbWgChEgLPlYByi8VsHTisbCpgMNSbf95JK5dVOs50=",
-      "OlisWonderEmporium.dll": "sha256-xGzWp1Cz+53PeuKF8qn0KnllKQBObZI1BTRNvvJllyc="
+      "OlisWonderEmporium.dll": "sha256-4BjqjmPzPYdgkBICOv54y7Zlmpc+kHdc7GgQbYDKjeo="
     },
     "pdb": {
-      "OlisWonderEmporium.pdb": "sha256-U2V8KXnHjEQ4rein/EtJAzTCZRgDDr/YWn/9m07/W20="
+      "OlisWonderEmporium.pdb": "sha256-xP+b+dS7RuODzPHHKFMPkRVt3CA7RgZNGYQBddu+PBU="
     },
     "runtimeAssets": {
       "dotnet.wasm": {

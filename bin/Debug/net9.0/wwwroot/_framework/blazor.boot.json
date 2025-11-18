@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "OlisWonderEmporium",
   "resources": {
-    "hash": "sha256-HlZDpG+MzlHLd+LIRg7BSsnmO0/ubGscrvX8VqPGV6Q=",
+    "hash": "sha256-auOi8VSbUgTBvDwuGb+OJV9VbWfPorsjG+Yrl/bdD6Q=",
     "fingerprinting": {
       "Microsoft.AspNetCore.Authorization.9fsvnxk1t3.wasm": "Microsoft.AspNetCore.Authorization.wasm",
       "Microsoft.AspNetCore.Components.pjn0f46j0d.wasm": "Microsoft.AspNetCore.Components.wasm",
@@ -201,8 +201,8 @@
       "icudt_CJK.tjcz0u77k5.dat": "icudt_CJK.dat",
       "icudt_EFIGS.tptq2av103.dat": "icudt_EFIGS.dat",
       "icudt_no_CJK.lfu7j35m59.dat": "icudt_no_CJK.dat",
-      "OlisWonderEmporium.g5ucrmo3hu.wasm": "OlisWonderEmporium.wasm",
-      "OlisWonderEmporium.fv1abiby1h.pdb": "OlisWonderEmporium.pdb"
+      "OlisWonderEmporium.iq8ewu4sog.wasm": "OlisWonderEmporium.wasm",
+      "OlisWonderEmporium.ac4iulzt2w.pdb": "OlisWonderEmporium.pdb"
     },
     "jsModuleNative": {
       "dotnet.native.l4ptthxatg.js": "sha256-ddUN4+taa/Qv7Mr8mLpunJO+0Xw3ViOqBvedhe57/hA="
@@ -412,10 +412,10 @@
       "WindowsBase.ahs9krftg4.wasm": "sha256-bgi2FHdT0ABsUP1yKQQ2AP8qfo1V/bS/4cJFE4OUHX8=",
       "mscorlib.k5iaovx9v7.wasm": "sha256-mEFLDERlY1HMNQHzh68xOPawXvI48O1fHW9PbfXugb4=",
       "netstandard.6sr1qvn64m.wasm": "sha256-Gpf+qEqCYaCB6zqI5sNPIurnfpwRtfcWksgf3CW6mHE=",
-      "OlisWonderEmporium.g5ucrmo3hu.wasm": "sha256-pHYED99vXQ5U87JbsNj908PJp5coB++ab4kLBvuYzlY="
+      "OlisWonderEmporium.iq8ewu4sog.wasm": "sha256-uruQehmNj1AHkOwZJ5lQDAmbQ3tUV2sL/b60J+6yTJ4="
     },
     "pdb": {
-      "OlisWonderEmporium.fv1abiby1h.pdb": "sha256-+8rPZA+hH/R5v++8r2c3/mVBPybpUa5R3BQmqd8HVcM="
+      "OlisWonderEmporium.ac4iulzt2w.pdb": "sha256-hlcUtIB8NxKXcB5jA08H8cwPkXfYS1UIVE4UyrVBNTk="
     }
   },
   "cacheBootResources": true,

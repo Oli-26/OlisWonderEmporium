@@ -1,0 +1,657 @@
+﻿@page "/plane"
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+
+<div style="width: 100%; background: #1a1a1a; padding: 20px; font-family: Arial, sans-serif;">
+    <h3 style="color: #fff; margin-bottom: 20px;">Procedural Terrain Viewer</h3>
+    
+    <div style="width: 100%; height: 500px; background: #000; margin-bottom: 20px;">
+        <canvas id="planet-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px;">
+        <div style="background: #2a2a2a; padding: 15px; border-radius: 8px;">
+            <h4 style="color: #fff; margin-top: 0;">Terrain Generation</h4>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Grid Size: <span style="color: #4a9eff;">@gridSize</span>
+                <input type="range" min="50" max="250" step="10" value="@gridSize" 
+                       @oninput="OnGridSizeChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Terrain Width: <span style="color: #4a9eff;">@terrainWidth</span>
+                <input type="range" min="10" max="50" step="1" value="@terrainWidth" 
+                       @oninput="OnWidthChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Terrain Depth: <span style="color: #4a9eff;">@terrainDepth</span>
+                <input type="range" min="10" max="50" step="1" value="@terrainDepth" 
+                       @oninput="OnDepthChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Curvature: <span style="color: #4a9eff;">@curvature.ToString("F3")</span>
+                <input type="range" min="0" max="0.05" step="0.001" value="@curvature" 
+                       @oninput="OnCurvatureChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+        </div>
+        
+        <div style="background: #2a2a2a; padding: 15px; border-radius: 8px;">
+            <h4 style="color: #fff; margin-top: 0;">Noise Parameters</h4>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Noise Scale: <span style="color: #4a9eff;">@noiseScale.ToString("F1")</span>
+                <input type="range" min="0.1" max="2.0" step="0.1" value="@noiseScale" 
+                       @oninput="OnNoiseScaleChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Noise Amplitude: <span style="color: #4a9eff;">@noiseAmplitude.ToString("F1")</span>
+                <input type="range" min="0" max="5" step="0.1" value="@noiseAmplitude" 
+                       @oninput="OnNoiseAmplitudeChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Octaves: <span style="color: #4a9eff;">@octaves</span>
+                <input type="range" min="1" max="8" step="1" value="@octaves" 
+                       @oninput="OnOctavesChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+        </div>
+        
+        <div style="background: #2a2a2a; padding: 15px; border-radius: 8px;">
+            <h4 style="color: #fff; margin-top: 0;">Camera Controls</h4>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Camera Distance: <span style="color: #4a9eff;">@cameraDistance</span>
+                <input type="range" min="5" max="30" step="0.5" value="@cameraDistance" 
+                       @oninput="OnCameraDistanceChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Camera Height: <span style="color: #4a9eff;">@cameraHeight</span>
+                <input type="range" min="2" max="20" step="0.5" value="@cameraHeight" 
+                       @oninput="OnCameraHeightChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Rotation Speed: <span style="color: #4a9eff;">@rotationSpeed.ToString("F1")</span>
+                <input type="range" min="0" max="2" step="0.1" value="@rotationSpeed" 
+                       @oninput="OnRotationSpeedChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+            
+            <label style="color: #ccc; display: block; margin-bottom: 10px;">
+                Field of View: <span style="color: #4a9eff;">@fov°</span>
+                <input type="range" min="20" max="90" step="5" value="@fov" 
+                       @oninput="OnFovChanged" 
+                       style="width: 100%; margin-top: 5px;" />
+            </label>
+        </div>
+    </div>
+    
+    <div style="display: flex; gap: 10px;">
+        <button @onclick="RegenerateTerrain" 
+                style="padding: 10px 20px; background: #4a9eff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+            Regenerate Terrain
+        </button>
+        <button @onclick="ResetDefaults" 
+                style="padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+            Reset to Defaults
+        </button>
+    </div>
+</div>
+
+@code {
+    private IJSObjectReference? module;
+    
+    // Terrain parameters
+    private int gridSize = 200;
+    private int terrainWidth = 25;
+    private int terrainDepth = 25;
+    private double curvature = 0.01;
+    private double noiseScale = 0.8;
+    private double noiseAmplitude = 1.5;
+    private int octaves = 4;
+    
+    // Camera parameters
+    private double cameraDistance = 12;
+    private double cameraHeight = 8;
+    private double rotationSpeed = 0.3;
+    private int fov = 45;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import",
+                "data:text/javascript;charset=utf-8," + Uri.EscapeDataString(@"
+let gl, program, indexCount;
+let angle = 0;
+let animationId = null;
+
+// Terrain parameters
+let params = {
+    gridSize: 200,
+    width: 25,
+    depth: 25,
+    curvature: 0.01,
+    noiseScale: 0.8,
+    noiseAmplitude: 1.5,
+    octaves: 4,
+    cameraDistance: 12,
+    cameraHeight: 8,
+    rotationSpeed: 0.3,
+    fov: 45
+};
+
+export function init() {
+    const canvas = document.getElementById('planet-canvas');
+    if (!canvas) {
+        console.error('Canvas not found');
+        return false;
+    }
+
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+
+    gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) {
+        console.error('WebGL not supported');
+        return false;
+    }
+
+    setupWebGL(canvas);
+    return true;
+}
+
+export function updateParams(newParams) {
+    Object.assign(params, newParams);
+}
+
+export function regenerate() {
+    if (gl && program) {
+        setupWebGL(document.getElementById('planet-canvas'));
+    }
+}
+
+function setupWebGL(canvas) {
+    const vertexShaderSource = `
+        attribute vec3 aPosition;
+        attribute vec3 aNormal;
+        uniform mat4 uProjection;
+        uniform mat4 uView;
+        uniform mat4 uModel;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        varying float vHeight;
+        
+        void main() {
+            vec4 worldPos = uModel * vec4(aPosition, 1.0);
+            gl_Position = uProjection * uView * worldPos;
+            vNormal = aNormal;
+            vPosition = aPosition;
+            vHeight = aPosition.y;
+        }
+    `;
+
+    const fragmentShaderSource = `
+        precision mediump float;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        varying float vHeight;
+        
+        void main() {
+            vec3 lightDir = normalize(vec3(0.3, 1.0, 0.2));
+            vec3 normal = normalize(vNormal);
+            float diffuse = max(dot(normal, lightDir), 0.70);
+            
+            float t = (vHeight + 2.0) / 4.0;
+            
+            vec3 color;
+            if (t < 0.3) {
+                color = mix(vec3(0.05, 0.1, 0.3), vec3(0.1, 0.2, 0.5), t / 0.3);
+            } else if (t < 0.5) {
+                float localT = (t - 0.3) / 0.2;
+                color = mix(vec3(0.1, 0.2, 0.5), vec3(0.2, 0.5, 0.6), localT);
+            } else if (t < 0.7) {
+                float localT = (t - 0.5) / 0.2;
+                color = mix(vec3(0.2, 0.5, 0.6), vec3(0.4, 0.7, 0.4), localT);
+            } else {
+                float localT = (t - 0.7) / 0.3;
+                color = mix(vec3(0.4, 0.7, 0.4), vec3(0.9, 0.95, 0.8), localT);
+            }
+            
+            float ao = 0.5 + 0.5 * t;
+            
+            gl_FragColor = vec4(color * diffuse * ao, 1.0);
+        }
+    `;
+
+    function compileShader(src, type) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('Shader error:', gl.getShaderInfoLog(shader));
+            return null;
+        }
+        return shader;
+    }
+
+    const vs = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+    const fs = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
+    
+    program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error('Program error:', gl.getProgramInfoLog(program));
+        return;
+    }
+    
+    gl.useProgram(program);
+
+    const gridSize = params.gridSize;
+    const width = params.width;
+    const depth = params.depth;
+    const vertices = [];
+    const normals = [];
+    const indices = [];
+
+    for (let i = 0; i <= gridSize; i++) {
+        for (let j = 0; j <= gridSize; j++) {
+            const x = (j / gridSize - 0.5) * width;
+            const z = (i / gridSize - 0.5) * depth;
+            
+            const distFromCenter = Math.sqrt(x*x + z*z);
+            const baseCurve = -(distFromCenter * distFromCenter) * params.curvature;
+            
+            const noiseValue = fbm(x * params.noiseScale, z * params.noiseScale, params.octaves);
+            
+            const y = baseCurve + noiseValue * params.noiseAmplitude;
+            
+            vertices.push(x, y, z);
+        }
+    }
+
+    for (let i = 0; i <= gridSize; i++) {
+        for (let j = 0; j <= gridSize; j++) {
+            const idx = i * (gridSize + 1) + j;
+            
+            let normal = [0, 1, 0];
+            
+            if (i > 0 && i < gridSize && j > 0 && j < gridSize) {
+                const vIdx = idx * 3;
+                const leftIdx = (i * (gridSize + 1) + (j - 1)) * 3;
+                const rightIdx = (i * (gridSize + 1) + (j + 1)) * 3;
+                const upIdx = ((i - 1) * (gridSize + 1) + j) * 3;
+                const downIdx = ((i + 1) * (gridSize + 1) + j) * 3;
+                
+                const dx = [
+                    vertices[rightIdx] - vertices[leftIdx],
+                    vertices[rightIdx + 1] - vertices[leftIdx + 1],
+                    vertices[rightIdx + 2] - vertices[leftIdx + 2]
+                ];
+                
+                const dz = [
+                    vertices[downIdx] - vertices[upIdx],
+                    vertices[downIdx + 1] - vertices[upIdx + 1],
+                    vertices[downIdx + 2] - vertices[upIdx + 2]
+                ];
+                
+                normal = cross(dx, dz);
+                const len = Math.sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
+                if (len > 0) {
+                    normal = [normal[0]/len, normal[1]/len, normal[2]/len];
+                }
+            }
+            
+            normals.push(normal[0], normal[1], normal[2]);
+        }
+    }
+
+    for (let i = 0; i < gridSize; i++) {
+        for (let j = 0; j < gridSize; j++) {
+            const a = i * (gridSize + 1) + j;
+            const b = a + 1;
+            const c = a + (gridSize + 1);
+            const d = c + 1;
+            indices.push(a, b, c);
+            indices.push(b, d, c);
+        }
+    }
+
+    const vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    const posLoc = gl.getAttribLocation(program, 'aPosition');
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+
+    const nbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+    const normLoc = gl.getAttribLocation(program, 'aNormal');
+    gl.enableVertexAttribArray(normLoc);
+    gl.vertexAttribPointer(normLoc, 3, gl.FLOAT, false, 0, 0);
+
+    const ibo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+    indexCount = indices.length;
+    gl.enable(gl.DEPTH_TEST);
+
+    if (!animationId) {
+        animate();
+    }
+}
+
+function hash(x, y) {
+    const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    return n - Math.floor(n);
+}
+
+function smoothstep(t) {
+    return t * t * (3 - 2 * t);
+}
+
+function noise(x, y) {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const xf = x - xi;
+    const yf = y - yi;
+    
+    const u = smoothstep(xf);
+    const v = smoothstep(yf);
+    
+    const a = hash(xi, yi);
+    const b = hash(xi + 1, yi);
+    const c = hash(xi, yi + 1);
+    const d = hash(xi + 1, yi + 1);
+    
+    const x1 = a * (1 - u) + b * u;
+    const x2 = c * (1 - u) + d * u;
+    
+    return x1 * (1 - v) + x2 * v;
+}
+
+function fbm(x, y, octaves) {
+    let value = 0;
+    let amplitude = 1.0;
+    let frequency = 1.0;
+    let maxValue = 0;
+    
+    for (let i = 0; i < octaves; i++) {
+        value += noise(x * frequency, y * frequency) * amplitude;
+        maxValue += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    
+    return (value / maxValue - 0.5) * 2;
+}
+
+function cross(a, b) {
+    return [
+        a[1]*b[2] - a[2]*b[1],
+        a[2]*b[0] - a[0]*b[2],
+        a[0]*b[1] - a[1]*b[0]
+    ];
+}
+
+function createProjectionMatrix(canvas) {
+    const aspect = canvas.width / canvas.height;
+    const fov = params.fov * Math.PI / 180;
+    const f = 1.0 / Math.tan(fov / 2);
+    const near = 0.1;
+    const far = 100.0;
+    const rangeInv = 1.0 / (near - far);
+
+    return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (near + far) * rangeInv, -1,
+        0, 0, near * far * rangeInv * 2, 0
+    ]);
+}
+
+function createViewMatrix(rotAngle) {
+    const distance = params.cameraDistance;
+    const height = params.cameraHeight;
+    
+    const angleRad = rotAngle * Math.PI / 180;
+    const camX = Math.sin(angleRad) * distance;
+    const camY = height;
+    const camZ = Math.cos(angleRad) * distance;
+    
+    const centerX = 0, centerY = 0, centerZ = 0;
+    const upX = 0, upY = 1, upZ = 0;
+
+    const zAxis = normalize([camX - centerX, camY - centerY, camZ - centerZ]);
+    const xAxis = normalize(cross([upX, upY, upZ], zAxis));
+    const yAxis = cross(zAxis, xAxis);
+
+    return new Float32Array([
+        xAxis[0], yAxis[0], zAxis[0], 0,
+        xAxis[1], yAxis[1], zAxis[1], 0,
+        xAxis[2], yAxis[2], zAxis[2], 0,
+        -dot(xAxis, [camX, camY, camZ]),
+        -dot(yAxis, [camX, camY, camZ]),
+        -dot(zAxis, [camX, camY, camZ]),
+        1
+    ]);
+}
+
+function createModelMatrix() {
+    return new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    ]);
+}
+
+function normalize(v) {
+    const len = Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+    return [v[0]/len, v[1]/len, v[2]/len];
+}
+
+function dot(a, b) {
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
+function render(canvas) {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    const projLoc = gl.getUniformLocation(program, 'uProjection');
+    const viewLoc = gl.getUniformLocation(program, 'uView');
+    const modelLoc = gl.getUniformLocation(program, 'uModel');
+
+    gl.uniformMatrix4fv(projLoc, false, createProjectionMatrix(canvas));
+    gl.uniformMatrix4fv(viewLoc, false, createViewMatrix(angle));
+    gl.uniformMatrix4fv(modelLoc, false, createModelMatrix());
+
+    gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, 0);
+}
+
+function animate() {
+    const canvas = document.getElementById('planet-canvas');
+    if (!canvas || !gl) return;
+    
+    angle += params.rotationSpeed;
+    if (angle >= 360) angle -= 360;
+    
+    render(canvas);
+    animationId = requestAnimationFrame(animate);
+}
+
+export function cleanup() {
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+}
+"));
+
+            await module.InvokeVoidAsync("init");
+        }
+    }
+
+    private async Task UpdateParameter(string param, object value)
+    {
+        if (module != null)
+        {
+            object paramObj = param switch
+            {
+                "gridSize" => new { gridSize = value },
+                "width" => new { width = value },
+                "depth" => new { depth = value },
+                "curvature" => new { curvature = value },
+                "noiseScale" => new { noiseScale = value },
+                "noiseAmplitude" => new { noiseAmplitude = value },
+                "octaves" => new { octaves = value },
+                "cameraDistance" => new { cameraDistance = value },
+                "cameraHeight" => new { cameraHeight = value },
+                "rotationSpeed" => new { rotationSpeed = value },
+                "fov" => new { fov = value },
+                _ => new { }
+            };
+            await module.InvokeVoidAsync("updateParams", paramObj);
+        }
+    }
+
+    private async Task OnGridSizeChanged(ChangeEventArgs e)
+    {
+        gridSize = int.Parse(e.Value?.ToString() ?? "200");
+        await UpdateParameter("gridSize", gridSize);
+    }
+
+    private async Task OnWidthChanged(ChangeEventArgs e)
+    {
+        terrainWidth = int.Parse(e.Value?.ToString() ?? "25");
+        await UpdateParameter("width", terrainWidth);
+    }
+
+    private async Task OnDepthChanged(ChangeEventArgs e)
+    {
+        terrainDepth = int.Parse(e.Value?.ToString() ?? "25");
+        await UpdateParameter("depth", terrainDepth);
+    }
+
+    private async Task OnCurvatureChanged(ChangeEventArgs e)
+    {
+        curvature = double.Parse(e.Value?.ToString() ?? "0.01");
+        await UpdateParameter("curvature", curvature);
+    }
+
+    private async Task OnNoiseScaleChanged(ChangeEventArgs e)
+    {
+        noiseScale = double.Parse(e.Value?.ToString() ?? "0.8");
+        await UpdateParameter("noiseScale", noiseScale);
+    }
+
+    private async Task OnNoiseAmplitudeChanged(ChangeEventArgs e)
+    {
+        noiseAmplitude = double.Parse(e.Value?.ToString() ?? "1.5");
+        await UpdateParameter("noiseAmplitude", noiseAmplitude);
+    }
+
+    private async Task OnOctavesChanged(ChangeEventArgs e)
+    {
+        octaves = int.Parse(e.Value?.ToString() ?? "4");
+        await UpdateParameter("octaves", octaves);
+    }
+
+    private async Task OnCameraDistanceChanged(ChangeEventArgs e)
+    {
+        cameraDistance = double.Parse(e.Value?.ToString() ?? "12");
+        await UpdateParameter("cameraDistance", cameraDistance);
+    }
+
+    private async Task OnCameraHeightChanged(ChangeEventArgs e)
+    {
+        cameraHeight = double.Parse(e.Value?.ToString() ?? "8");
+        await UpdateParameter("cameraHeight", cameraHeight);
+    }
+
+    private async Task OnRotationSpeedChanged(ChangeEventArgs e)
+    {
+        rotationSpeed = double.Parse(e.Value?.ToString() ?? "0.3");
+        await UpdateParameter("rotationSpeed", rotationSpeed);
+    }
+
+    private async Task OnFovChanged(ChangeEventArgs e)
+    {
+        fov = int.Parse(e.Value?.ToString() ?? "45");
+        await UpdateParameter("fov", fov);
+    }
+
+    private async Task RegenerateTerrain()
+    {
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("regenerate");
+        }
+    }
+
+    private async Task ResetDefaults()
+    {
+        gridSize = 200;
+        terrainWidth = 25;
+        terrainDepth = 25;
+        curvature = 0.01;
+        noiseScale = 0.8;
+        noiseAmplitude = 1.5;
+        octaves = 4;
+        cameraDistance = 12;
+        cameraHeight = 8;
+        rotationSpeed = 0.3;
+        fov = 45;
+
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("updateParams", new
+            {
+                gridSize,
+                width = terrainWidth,
+                depth = terrainDepth,
+                curvature,
+                noiseScale,
+                noiseAmplitude,
+                octaves,
+                cameraDistance,
+                cameraHeight,
+                rotationSpeed,
+                fov
+            });
+            await module.InvokeVoidAsync("regenerate");
+        }
+
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("cleanup");
+            await module.DisposeAsync();
+        }
+    }
+}

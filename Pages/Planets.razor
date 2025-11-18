@@ -1,0 +1,667 @@
+﻿@page "/planet-viewer"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<PageTitle>3D Planet Viewer</PageTitle>
+
+<div class="planet-container">
+    <h1>🌍 Procedural Planet Generator</h1>
+    
+    <div class="main-layout">
+        <!-- Left Panel -->
+        <div class="side-panel left-panel">
+            <div class="control-group">
+                <h3>View Controls</h3>
+                <button class="btn btn-primary" @onclick="ToggleAnimation">
+                    @(isAnimating ? "⏸ Pause" : "▶ Play")
+                </button>
+                <button class="btn btn-secondary" @onclick="ResetView">🔄 Reset View</button>
+                
+                <label>
+                    <span class="label-text">Planet Size: <strong>@planetSize.ToString("F1")</strong></span>
+                    <input type="range" min="0.5" max="3" step="0.1" value="@planetSize" @oninput="OnSizeChanged" />
+                </label>
+                
+                <label>
+                    <span class="label-text">Rotation Speed: <strong>@rotationSpeed.ToString("F1")</strong></span>
+                    <input type="range" min="0" max="5" step="0.1" value="@rotationSpeed" @oninput="OnSpeedChanged" />
+                </label>
+            </div>
+
+            <div class="control-group">
+                <h3>Terrain Properties</h3>
+                <label>
+                    <span class="label-text">Water Level: <strong>@waterLevel.ToString("F1")%</strong></span>
+                    <input type="range" min="0" max="100" step="0.1" value="@waterLevel" @oninput="OnWaterLevelChanged" />
+                </label>
+                
+                <label>
+                    <span class="label-text">Planet Height: <strong>@planetHeight.ToString("F2")</strong></span>
+                    <input type="range" min="0" max="1" step="0.01" value="@planetHeight" @oninput="OnPlanetHeightChanged" />
+                </label>
+                
+                <label>
+                    <span class="label-text">Terrain Detail: <strong>@terrainVariation.ToString("F1")</strong></span>
+                    <input type="range" min="1" max="6" step="0.1" value="@terrainVariation" @oninput="OnTerrainVariationChanged" />
+                </label>
+            </div>
+
+            <div class="control-group">
+                <h3>Biome Widths</h3>
+                <label>
+                    <span class="label-text">Beach: <strong>@beachWidth.ToString("F1")%</strong></span>
+                    <input type="range" min="0" max="20" step="0.1" value="@beachWidth" @oninput="OnBeachWidthChanged" />
+                </label>
+                
+                <label>
+                    <span class="label-text">Grassland: <strong>@grassWidth.ToString("F1")%</strong></span>
+                    <input type="range" min="0" max="30" step="0.1" value="@grassWidth" @oninput="OnGrassWidthChanged" />
+                </label>
+                
+                <label>
+                    <span class="label-text">Forest: <strong>@forestWidth.ToString("F1")%</strong></span>
+                    <input type="range" min="0" max="30" step="0.1" value="@forestWidth" @oninput="OnForestWidthChanged" />
+                </label>
+                
+                <label>
+                    <span class="label-text">Mountain: <strong>@mountainWidth.ToString("F1")%</strong></span>
+                    <input type="range" min="0" max="40" step="0.1" value="@mountainWidth" @oninput="OnMountainWidthChanged" />
+                </label>
+            </div>
+        </div>
+
+        <!-- Center Canvas -->
+        <div class="canvas-container">
+            <canvas id="planetCanvas" width="800" height="800"></canvas>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="side-panel right-panel">
+            <div class="control-group">
+                <h3>Biome Colors</h3>
+                
+                <label class="color-control">
+                    <span>🌊 Deep Water</span>
+                    <input type="color" value="@deepWaterColor" @oninput="OnDeepWaterColorChanged" />
+                </label>
+                
+                <label class="color-control">
+                    <span>💧 Shallow Water</span>
+                    <input type="color" value="@shallowWaterColor" @oninput="OnShallowWaterColorChanged" />
+                </label>
+                
+                <label class="color-control">
+                    <span>🏖️ Beach</span>
+                    <input type="color" value="@beachColor" @oninput="OnBeachColorChanged" />
+                </label>
+                
+                <label class="color-control">
+                    <span>🌱 Grass</span>
+                    <input type="color" value="@grassColor" @oninput="OnGrassColorChanged" />
+                </label>
+                
+                <label class="color-control">
+                    <span>🌲 Forest</span>
+                    <input type="color" value="@forestColor" @oninput="OnForestColorChanged" />
+                </label>
+                
+                <label class="color-control">
+                    <span>⛰️ Mountain</span>
+                    <input type="color" value="@mountainColor" @oninput="OnMountainColorChanged" />
+                </label>
+                
+                <label class="color-control">
+                    <span>🏔️ Snow</span>
+                    <input type="color" value="@snowColor" @oninput="OnSnowColorChanged" />
+                </label>
+                
+                <button class="btn btn-secondary" @onclick="ResetColors">Reset Colors</button>
+            </div>
+
+            <div class="control-group info-panel">
+                <h3>About</h3>
+                <p>This planet uses procedural terrain generation with fractal Brownian motion noise to create realistic landscapes.</p>
+                <ul>
+                    <li><strong>Drag</strong> to rotate (coming soon)</li>
+                    <li><strong>Scroll</strong> to zoom (coming soon)</li>
+                    <li>Adjust sliders for real-time changes</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .planet-container {
+        padding: 20px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 100%);
+        color: #e0e0e0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    h1 {
+        text-align: center;
+        color: #fff;
+        margin: 0 0 20px 0;
+        font-size: 32px;
+        text-shadow: 0 2px 10px rgba(100, 200, 255, 0.3);
+        font-weight: 700;
+    }
+
+    .main-layout {
+        display: flex;
+        gap: 20px;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .side-panel {
+        width: 300px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    .side-panel::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .side-panel::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+    }
+
+    .side-panel::-webkit-scrollbar-thumb {
+        background: rgba(100, 200, 255, 0.3);
+        border-radius: 4px;
+    }
+
+    .side-panel::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 200, 255, 0.5);
+    }
+
+    .canvas-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        background: radial-gradient(circle at center, rgba(100, 200, 255, 0.05) 0%, transparent 70%);
+    }
+
+    canvas {
+        border: 3px solid rgba(100, 200, 255, 0.3);
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5),
+                    0 0 30px rgba(100, 200, 255, 0.2);
+        cursor: grab;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+        display: block;
+        background: #000;
+    }
+
+    canvas:active {
+        cursor: grabbing;
+    }
+
+    .control-group {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(10px);
+        padding: 18px;
+        border-radius: 12px;
+        border: 1px solid rgba(100, 200, 255, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .control-group h3 {
+        margin: 0 0 15px 0;
+        color: #64c8ff;
+        font-size: 16px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 2px solid rgba(100, 200, 255, 0.2);
+        padding-bottom: 8px;
+    }
+
+    .control-group label {
+        display: block;
+        margin: 14px 0;
+    }
+
+    .label-text {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        color: #b0b0b0;
+    }
+
+    .label-text strong {
+        color: #64c8ff;
+        float: right;
+        font-family: 'Courier New', monospace;
+    }
+
+    .color-control {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .color-control:last-of-type {
+        border-bottom: none;
+    }
+
+    .color-control span {
+        font-size: 14px;
+        color: #e0e0e0;
+    }
+
+    .control-group input[type="range"] {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(100, 200, 255, 0.1);
+        outline: none;
+        -webkit-appearance: none;
+    }
+
+    .control-group input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #64c8ff 0%, #4a90e2 100%);
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(100, 200, 255, 0.4);
+        transition: transform 0.1s;
+    }
+
+    .control-group input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+    }
+
+    .control-group input[type="range"]::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #64c8ff 0%, #4a90e2 100%);
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 8px rgba(100, 200, 255, 0.4);
+    }
+
+    .control-group input[type="color"] {
+        width: 70px;
+        height: 35px;
+        border: 2px solid rgba(100, 200, 255, 0.2);
+        border-radius: 6px;
+        cursor: pointer;
+        background: transparent;
+        transition: border-color 0.2s;
+    }
+
+    .control-group input[type="color"]:hover {
+        border-color: rgba(100, 200, 255, 0.5);
+    }
+
+    .btn {
+        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+        color: white;
+        border: none;
+        padding: 12px 18px;
+        margin: 6px 0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        width: 100%;
+        transition: all 0.2s;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
+    }
+
+    .btn:hover {
+        background: linear-gradient(135deg, #5aa0f2 0%, #4580cd 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(74, 144, 226, 0.3);
+    }
+
+    .btn:active {
+        transform: translateY(0);
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #64c8ff 0%, #4a90e2 100%);
+        font-size: 15px;
+        padding: 14px 18px;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #74d8ff 0%, #5aa0f2 100%);
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(10px);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .info-panel {
+        background: rgba(100, 200, 255, 0.05);
+        border-color: rgba(100, 200, 255, 0.2);
+    }
+
+    .info-panel p {
+        font-size: 13px;
+        line-height: 1.6;
+        color: #b0b0b0;
+        margin: 0 0 12px 0;
+    }
+
+    .info-panel ul {
+        margin: 0;
+        padding-left: 20px;
+    }
+
+    .info-panel li {
+        font-size: 12px;
+        line-height: 1.8;
+        color: #999;
+    }
+
+    .info-panel strong {
+        color: #64c8ff;
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 1600px) {
+        .side-panel {
+            width: 260px;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .main-layout {
+            flex-direction: column;
+        }
+
+        .side-panel {
+            width: 100%;
+            flex-direction: row;
+            overflow-x: auto;
+            overflow-y: visible;
+            gap: 15px;
+        }
+
+        .control-group {
+            min-width: 300px;
+        }
+
+        .canvas-container {
+            order: -1;
+            max-height: 50vh;
+        }
+
+        canvas {
+            max-height: 50vh;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        h1 {
+            font-size: 24px;
+        }
+
+        .control-group {
+            min-width: 280px;
+        }
+    }
+</style>
+
+@code {
+    private IJSObjectReference? module;
+    private double planetSize = 1.0;
+    private double rotationSpeed = 1.0;
+    private bool isAnimating = true;
+    private double waterLevel = 50;
+    private double beachWidth = 5;
+    private double grassWidth = 15;
+    private double forestWidth = 15;
+    private double mountainWidth = 10;
+    private double planetHeight = 0.2;
+    private double terrainVariation = 3.0;
+    
+    // Default colors
+    private string deepWaterColor = "#001a4d";
+    private string shallowWaterColor = "#1a4d80";
+    private string beachColor = "#e6d99a";
+    private string grassColor = "#338019";
+    private string forestColor = "#1a4d0d";
+    private string mountainColor = "#665c4d";
+    private string snowColor = "#e6e6f2";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/planetviewer.js");
+            await module.InvokeVoidAsync("initialize");
+        }
+    }
+
+    private async Task OnSizeChanged(ChangeEventArgs e)
+    {
+        planetSize = double.Parse(e.Value?.ToString() ?? "1.0");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setPlanetSize", planetSize);
+        }
+    }
+
+    private async Task OnSpeedChanged(ChangeEventArgs e)
+    {
+        rotationSpeed = double.Parse(e.Value?.ToString() ?? "1.0");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setRotationSpeed", rotationSpeed);
+        }
+    }
+
+    private async Task OnWaterLevelChanged(ChangeEventArgs e)
+    {
+        waterLevel = double.Parse(e.Value?.ToString() ?? "50.0");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setWaterLevel", waterLevel);
+        }
+    }
+
+    private async Task OnBeachWidthChanged(ChangeEventArgs e)
+    {
+        beachWidth = double.Parse(e.Value?.ToString() ?? "5");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setBeachWidth", beachWidth);
+        }
+    }
+
+    private async Task OnGrassWidthChanged(ChangeEventArgs e)
+    {
+        grassWidth = double.Parse(e.Value?.ToString() ?? "15");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setGrassWidth", grassWidth);
+        }
+    }
+
+    private async Task OnForestWidthChanged(ChangeEventArgs e)
+    {
+        forestWidth = double.Parse(e.Value?.ToString() ?? "15");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setForestWidth", forestWidth);
+        }
+    }
+
+    private async Task OnMountainWidthChanged(ChangeEventArgs e)
+    {
+        mountainWidth = double.Parse(e.Value?.ToString() ?? "10");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setMountainWidth", mountainWidth);
+        }
+    }
+    
+    private async Task OnPlanetHeightChanged(ChangeEventArgs e)
+    {
+        planetHeight = double.Parse(e.Value?.ToString() ?? "0.2");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setPlanetHeight", planetHeight);
+        }
+    }
+
+    private async Task OnTerrainVariationChanged(ChangeEventArgs e)
+    {
+        terrainVariation = double.Parse(e.Value?.ToString() ?? "3.0");
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setTerrainVariation", terrainVariation);
+        }
+    }
+
+    private async Task OnDeepWaterColorChanged(ChangeEventArgs e)
+    {
+        deepWaterColor = e.Value?.ToString() ?? "#001a4d";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setDeepWaterColor", deepWaterColor);
+        }
+    }
+
+    private async Task OnShallowWaterColorChanged(ChangeEventArgs e)
+    {
+        shallowWaterColor = e.Value?.ToString() ?? "#1a4d80";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setShallowWaterColor", shallowWaterColor);
+        }
+    }
+
+    private async Task OnBeachColorChanged(ChangeEventArgs e)
+    {
+        beachColor = e.Value?.ToString() ?? "#e6d99a";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setBeachColor", beachColor);
+        }
+    }
+
+    private async Task OnGrassColorChanged(ChangeEventArgs e)
+    {
+        grassColor = e.Value?.ToString() ?? "#338019";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setGrassColor", grassColor);
+        }
+    }
+
+    private async Task OnForestColorChanged(ChangeEventArgs e)
+    {
+        forestColor = e.Value?.ToString() ?? "#1a4d0d";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setForestColor", forestColor);
+        }
+    }
+
+    private async Task OnMountainColorChanged(ChangeEventArgs e)
+    {
+        mountainColor = e.Value?.ToString() ?? "#665c4d";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setMountainColor", mountainColor);
+        }
+    }
+
+    private async Task OnSnowColorChanged(ChangeEventArgs e)
+    {
+        snowColor = e.Value?.ToString() ?? "#e6e6f2";
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setSnowColor", snowColor);
+        }
+    }
+
+    private async Task ResetColors()
+    {
+        deepWaterColor = "#001a4d";
+        shallowWaterColor = "#1a4d80";
+        beachColor = "#e6d99a";
+        grassColor = "#338019";
+        forestColor = "#1a4d0d";
+        mountainColor = "#665c4d";
+        snowColor = "#e6e6f2";
+
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setDeepWaterColor", deepWaterColor);
+            await module.InvokeVoidAsync("setShallowWaterColor", shallowWaterColor);
+            await module.InvokeVoidAsync("setBeachColor", beachColor);
+            await module.InvokeVoidAsync("setGrassColor", grassColor);
+            await module.InvokeVoidAsync("setForestColor", forestColor);
+            await module.InvokeVoidAsync("setMountainColor", mountainColor);
+            await module.InvokeVoidAsync("setSnowColor", snowColor);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleAnimation()
+    {
+        isAnimating = !isAnimating;
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("toggleAnimation");
+        }
+    }
+
+    private async Task ResetView()
+    {
+        planetSize = 1.0;
+        rotationSpeed = 1.0;
+        isAnimating = true;
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("resetView");
+        }
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("cleanup");
+            await module.DisposeAsync();
+        }
+    }
+}
